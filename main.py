@@ -1,12 +1,26 @@
 import pygame
 from random import randint
 
-grid_width = 20
-grid_height = 20
+#set seed to be the same
+#train a nn to find the best path
 
-grid_size = 30
+grid_width = 10
+grid_height = 10
 
-grid = [[randint(0,1) for y in range(grid_height)] for x in range(grid_width)]
+grid_size = 60
+
+max_val = 6
+
+grid = [[randint(0,max_val) for y in range(grid_height)] for x in range(grid_width)]
+
+history = []
+
+for x in range(grid_width):
+        for y in range(grid_height):
+            if grid[x][y] < max_val:
+                grid[x][y] = 0
+            else:
+                grid[x][y] = 1
 
 width = grid_size*grid_width
 height = grid_size*grid_height
@@ -39,19 +53,39 @@ def fill_cell(x,y,colour):
 def fill_grid():
     
     surface.fill((255,255,255))
+
+    draw_history()
     
     draw_food()    
 
     draw_player()
 
+food = 0
+
+def draw_history():
+    global history
+    print(history)
+    for location in history:
+        cell_x = location[0]
+        cell_y = location[1]
+        colour = (0,0,255)
+        fill_cell(cell_x,cell_y,colour)
+
 def draw_player():
-    global player
-    cell_x = player[0]
-    cell_y = player[1]
+    global player, food, history
+    cell_x = int(player[0])
+    cell_y = int(player[1])
 
     colour = (255,0,0)
 
+    if grid[cell_x][cell_y] == int(1):
+        food += 1
+        grid[cell_x][cell_y] = 0
+    
     fill_cell(cell_x,cell_y,colour)
+    loc = [int(player[0]),int(player[1])]
+    if loc not in history:
+        history.append(loc)
 
 def draw_food():
     for x in range(grid_width):
@@ -97,7 +131,9 @@ while running:
             if event.key == pygame.K_d:
                 player[0] += 1
                 moves -= 1
-
+            print(moves)
+            if moves <= 0:
+                running = False
     fill_grid()
 
     draw_grid_lines()
@@ -115,3 +151,4 @@ while running:
         #draw grid
         #draw remaining food
         #draw player
+print(food)
