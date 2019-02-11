@@ -6,30 +6,37 @@ import time
 #set seed to be the same
 #train a nn to find the best path
 
-grid_width = 20
-grid_height = 20
+pygame.init()
+info = pygame.display.Info() # You have to call this before pygame.display.set_mode()
+screen_width,screen_height = info.current_w,info.current_h
+print(screen_width,screen_height)
 
-grid_size = 30
+grid_size = 40 #automate the process of picking this number so it perfectly fits
 
-max_val = 6
+grid_height = round(screen_height/grid_size)
+grid_width = round(screen_width/grid_size)
 
-grid = [[randint(0,max_val) for y in range(grid_height)] for x in range(grid_width)]
+max_val = 15
+
+#grid = [[randint(0,max_val) for y in range(grid_height)] for x in range(grid_width)]
+
+grid = {} #keys are the co ords, values are the type of cell
+
 
 history = {}
 
-for x in range(grid_width):
-        for y in range(grid_height):
-            if grid[x][y] < max_val:
-                grid[x][y] = 0
-            else:
-                grid[x][y] = 1
+for x in range(grid_width): #bad but not that bad
+    for y in range(grid_height):
+        value = randint(0,max_val)
+        if value == max_val:
+            grid[(x,y)] = 1
 
 width = grid_size*grid_width
 height = grid_size*grid_height
 
-surface = pygame.display.set_mode((width, height))
+surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
-def draw_grid_lines():
+def draw_grid_lines(): #optimise pls, render this only once
     for x in range(grid_width):
         grid_colour = (0,0,0)
         start_pos = (x*grid_size,0)
@@ -69,34 +76,41 @@ def draw_history():
         fill_cell(cell_x,cell_y,colour)
 
 def draw_player():
-    global player, food, history, grid_width, grid_height
+    global moves, player, food, history, grid_width, grid_height, food_move_gain
     
     cell_x = int(player[0])
     cell_y = int(player[1])
 
     colour = (255,0,0)
-
-    if grid[cell_x][cell_y] == int(1):
-        food += 1
-        grid[cell_x][cell_y] = 0
+    try:
+        if grid[(cell_x,cell_y)] == int(1):
+            food += 1
+            moves += food_move_gain
+            del grid[(cell_x,cell_y)]
+    except:
+        pass
     
     fill_cell(cell_x,cell_y,colour)
 
 def draw_food():
-    for x in range(grid_width):
-        for y in range(grid_height):
-            if grid[x][y]:
-                colour = (0,128,0)
-                cell_x = x
-                cell_y = y
-                fill_cell(cell_x,cell_y,colour)
+    for location, value in grid.items():
+        if value == 1:
+            colour = (0,128,0)
+            cell_x = location[0]
+            cell_y = location[1]
+            fill_cell(cell_x,cell_y,colour)
 
 def add_history():
-    global history_colour, player, history
-    history_colour[0] += colour_change
-    history_colour[1] -= colour_change
-    history_colour[2] -= colour_change
-
+    global history_colour, player, history, moves, original_moves
+    value = original_moves-moves
+    if value > original_moves:
+        value = orginal_moves
+    elif value < 0:
+        value = 0
+    history_colour[0] = 128+(value*colour_change)
+    history_colour[1] = 128-(value*colour_change)
+    history_colour[2] = 128-(value*colour_change)
+    
     for i in range(len(history_colour)):
         if history_colour[i] < 0:
             history_colour[i] = 0
@@ -112,13 +126,19 @@ def add_history():
 
 food = 0
 
-moves = 3000
+food_move_gain = 4
+
+original_moves = 15
+
+moves = original_moves
 
 history_colour = [128.0,128.0,128.0]
 
 colour_change = (128/moves)
 
-player = [grid_width/2,grid_height/2]
+player = [round(grid_width/2)-1,round(grid_height/2)-1]
+
+player_old = [0,0]
 
 add_history()
 
@@ -126,58 +146,63 @@ fill_grid()
 
 draw_grid_lines()
 
-pygame.display.update()
+pygame.display.update() #first draw
 
 running = True
-
-moves_old = 0
 
 def wrapping_and_history_update():
     global moves, player, grid_height, grid_width, running
     moves -= 1
-    if moves_old != moves:
-        if int(player[0]) >= grid_width:
-            player[0] = 0
-        elif int(player[0]) < 0:
-            player[0] = grid_width-1
-        if int(player[1]) >= grid_height:
-            player[1] = 0
-        elif int(player[1]) < 0:
-            player[1] = grid_height-1
-        add_history()
-        print("Moves Remaining: {}".format(moves))
+    print(moves)
+    if int(player[0]) >= grid_width:
+        player[0] = 0
+    elif int(player[0]) < 0:
+        player[0] = grid_width-1
+    if int(player[1]) >= grid_height:
+        player[1] = 0
+    elif int(player[1]) < 0:
+        player[1] = grid_height-1
+    add_history()
+    #print("Moves Remaining: {}".format(moves))
     redraw_scene()
     move_check()
     
 def redraw_scene():
+    global player, player_old
     fill_grid()
 
     draw_grid_lines()
-    
-    pygame.display.update()
-    time.sleep(0.01)
+    player_rect = [player[0]*grid_size,player[1]*grid_size,grid_size,grid_size]
+    player_old_rect = [player_old[0]*grid_size,player_old[1]*grid_size,grid_size,grid_size]
+    pygame.display.update([player_rect,player_old_rect]) #unoptimised yuck
+    #pygame.display.update()
+    time.sleep(0.1)
 
 def key_check():
-    global moves, player, moves_old
+    global moves, player, player_old
     events = pygame.event.get()
     #listen for input
     keys = pygame.key.get_pressed()
     if keys[pygame.K_w]:
+        player_old = (player[0],player[1])
         player[1] -= 1
         wrapping_and_history_update()
     if move_check():
         return
     if keys[pygame.K_a]:
+        player_old = (player[0],player[1])
         player[0] -= 1
         wrapping_and_history_update()
     if move_check():
         return
     if keys[pygame.K_s]:
+        player_old = (player[0],player[1])
         player[1] += 1
         wrapping_and_history_update()
     if move_check():
         return
     if keys[pygame.K_d]:
+        player_old = (player[0],player[1])
         player[0] += 1
         wrapping_and_history_update()
     if move_check():
@@ -191,8 +216,6 @@ def move_check():
 
 while running:
     key_check()
-    
-    redraw_scene()
 
 print("Food Collected: {}".format(food))
 
