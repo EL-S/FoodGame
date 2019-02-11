@@ -1,5 +1,7 @@
 import pygame
 from random import randint
+import math
+import time
 
 #set seed to be the same
 #train a nn to find the best path
@@ -95,20 +97,13 @@ def add_history():
     history_colour[1] -= colour_change
     history_colour[2] -= colour_change
 
-    if history_colour[0] < 0:
-        history_colour[0] = 0
-    elif history_colour[0] > 255:
-        history_colour[0] = 255
-    if history_colour[1] < 0:
-        history_colour[1] = 0
-    elif history_colour[1] > 255:
-        history_colour[1] = 255
-    if history_colour[2] < 0:
-        history_colour[2] = 0
-    elif history_colour[2] > 255:
-        history_colour[2] = 255
+    for i in range(len(history_colour)):
+        if history_colour[i] < 0:
+            history_colour[i] = 0
+        elif history_colour[i] > 255:
+            history_colour[i] = 255
 
-    colour_val = (history_colour[0],history_colour[1],history_colour[2])
+    colour_val = (round(history_colour[0]),round(history_colour[1]),round(history_colour[2]))
     
     loc_pos = (int(player[0]),int(player[1]))
     loc_colour = colour_val
@@ -117,11 +112,11 @@ def add_history():
 
 food = 0
 
-moves = 30
+moves = 3000
 
-history_colour = [128,128,128]
+history_colour = [128.0,128.0,128.0]
 
-colour_change = round(128/moves)
+colour_change = (128/moves)
 
 player = [grid_width/2,grid_height/2]
 
@@ -135,43 +130,69 @@ pygame.display.update()
 
 running = True
 
-while running:
+moves_old = 0
 
-    #listen for input
-    events = pygame.event.get()
-    for event in events:
-        if event.type == pygame.KEYDOWN:
-            moves_old = moves
-            if event.key == pygame.K_w:
-                player[1] -= 1
-                moves -= 1
-            if event.key == pygame.K_a:
-                player[0] -= 1
-                moves -= 1
-            if event.key == pygame.K_s:
-                player[1] += 1
-                moves -= 1
-            if event.key == pygame.K_d:
-                player[0] += 1
-                moves -= 1
-            if moves_old != moves:
-                if int(player[0]) >= grid_width:
-                    player[0] = 0
-                elif int(player[0]) < 0:
-                    player[0] = grid_width-1
-                if int(player[1]) >= grid_height:
-                    player[1] = 0
-                elif int(player[1]) < 0:
-                    player[1] = grid_height-1
-                add_history()
-            print("Moves Remaining: {}".format(moves))
-            if moves <= 0:
-                running = False
+def wrapping_and_history_update():
+    global moves, player, grid_height, grid_width, running
+    moves -= 1
+    if moves_old != moves:
+        if int(player[0]) >= grid_width:
+            player[0] = 0
+        elif int(player[0]) < 0:
+            player[0] = grid_width-1
+        if int(player[1]) >= grid_height:
+            player[1] = 0
+        elif int(player[1]) < 0:
+            player[1] = grid_height-1
+        add_history()
+        print("Moves Remaining: {}".format(moves))
+    redraw_scene()
+    move_check()
+    
+def redraw_scene():
     fill_grid()
 
     draw_grid_lines()
     
     pygame.display.update()
+    time.sleep(0.01)
+
+def key_check():
+    global moves, player, moves_old
+    events = pygame.event.get()
+    #listen for input
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_w]:
+        player[1] -= 1
+        wrapping_and_history_update()
+    if move_check():
+        return
+    if keys[pygame.K_a]:
+        player[0] -= 1
+        wrapping_and_history_update()
+    if move_check():
+        return
+    if keys[pygame.K_s]:
+        player[1] += 1
+        wrapping_and_history_update()
+    if move_check():
+        return
+    if keys[pygame.K_d]:
+        player[0] += 1
+        wrapping_and_history_update()
+    if move_check():
+        return
+
+def move_check():
+    global moves, running
+    if moves <= 0:
+        running = False
+        return True
+
+while running:
+    key_check()
+    
+    redraw_scene()
 
 print("Food Collected: {}".format(food))
 
