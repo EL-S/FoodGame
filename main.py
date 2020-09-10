@@ -27,10 +27,12 @@ def fill_cell(x,y,colour):
     pygame.draw.rect(surface, colour, pygame.Rect(x, y, grid_size, grid_size))
 
 def fill_grid():
+    global nearest_food
     surface.fill((255,255,255))
-    draw_history()
-    draw_food()    
+    draw_history() 
     draw_player()
+    nearest_food = get_nearest_food()
+    draw_food()
 
 def draw_history():
     global history
@@ -47,19 +49,26 @@ def draw_player():
 
     colour = (255,0,0)
     try:
-        if grid[(cell_x,cell_y)] == int(1):
+        if grid[(cell_x,cell_y)][0] == int(1):
             food += 1
             moves += food_move_gain
             del grid[(cell_x,cell_y)]
+            dead[(cell_x,cell_y)] = (0, 0, 0)
     except:
         pass
     
     fill_cell(cell_x,cell_y,colour)
 
 def draw_food():
-    for location, value in grid.items():
+    for location, (value, colour) in grid.items():
         if value == 1:
-            colour = (randint(0,255),randint(0,255),randint(0,255))
+            if nearest_food:
+                if nearest_food[-1] == location:
+                    colour = (0, 0, 0)
+            cell_x,cell_y = location
+            fill_cell(cell_x,cell_y,colour)
+    if draw_dead:
+        for location, colour in dead.items():
             cell_x,cell_y = location
             fill_cell(cell_x,cell_y,colour)
 
@@ -103,15 +112,38 @@ def wrapping_and_history_update():
     #print("Moves Remaining: {}".format(moves))
     redraw_scene()
     move_check()
-    
-def redraw_scene():
-    global player, player_old
-    fill_grid()
 
+def draw_text():
+    global font, text_colour
+    # Render the text surface.
+    txt_surf = font.render(str(moves), True, text_colour)
+    # Create a transparent surface.
+    alpha_img = pygame.Surface(txt_surf.get_size(), pygame.SRCALPHA)
+    # Fill it with white and the desired alpha value.
+    alpha_img.fill((255, 255, 255, 140))
+    # Blit the alpha surface onto the text surface and pass BLEND_RGBA_MULT.
+    txt_surf.blit(alpha_img, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+    text_rect = surface.blit(txt_surf, (38, 45))
+    return text_rect
+
+def redraw_scene():
+    global player, player_old, last_rect, nearest_food, previous_nearest_food
+    fill_grid()
     draw_grid_lines()
+    text_rect = draw_text()
     player_rect = [player[0]*grid_size,player[1]*grid_size,grid_size,grid_size]
     player_old_rect = [player_old[0]*grid_size,player_old[1]*grid_size,grid_size,grid_size]
-    pygame.display.update([player_rect,player_old_rect])
+    update_list = [player_rect,player_old_rect,last_rect,text_rect]
+    if previous_nearest_food:
+        previous_food_rect = [previous_nearest_food[-1][0]*grid_size,previous_nearest_food[-1][1]*grid_size,grid_size,grid_size]
+        update_list.append(previous_food_rect)
+    if nearest_food:
+        nearest_food_rect = [nearest_food[-1][0]*grid_size,nearest_food[-1][1]*grid_size,grid_size,grid_size]
+        update_list.append(nearest_food_rect)
+
+    pygame.display.update(update_list)
+    
+    last_rect = text_rect
 
 def key_check(event):
     global moves, player, player_old
@@ -145,7 +177,7 @@ def key_check(event):
 def move_check():
     global moves, running
     if moves <= 0:
-        init(82)
+        init(start_food_amount)
         return True
 
 def game_over():
@@ -155,50 +187,64 @@ def game_over():
     else:
         return True
 
-def choose_move():
-    global moves, player, player_old, grid_width, grid_height
+def get_nearest_food():
+    global player, grid_width, grid_height, nearest_food, previous_nearest_food
+    previous_nearest_food = nearest_food
     nearest_food = None
     for location, value in grid.items():
-        if value == 1:
-            if location[0] < player[0]:
-                direction_x = -1
-                x_distance = location[0]-player[0]
+        if value[0] == 1:
+            x_distance = location[0]-player[0]
+            y_distance = location[1]-player[1]
+            if x_distance > 0:
+                # go left
+                x_direction = -1
+            elif x_distance < 0:
+                # go right
+                x_direction = 1
             else:
-                direction_x = 1
-                x_distance = location[0]-player[0]
-            if location[1] < player[1]:
-                direction_y = -1
-                y_distance = location[1]-player[1]
+                # stay
+                x_direction = 0
+            if y_distance > 0:
+                # go up
+                y_direction = -1
+            elif y_distance < 0:
+                # go down
+                y_direction = 1
             else:
-                direction_y = 1
-                y_distance = location[1]-player[1]
-            if abs(x_distance) > int(grid_width/2):
-                direction_x *= -1
-                x_distance = -1*(grid_width - x_distance)
-            if abs(y_distance) > int(grid_height/2):
-                direction_y *= -1
-                y_distance = -1*(grid_height - y_distance)
-            abs_x =abs(x_distance)
-            abs_y =abs(y_distance)
+                # stay
+                y_direction = 0
+            if abs(x_distance) > round(grid_width/2):
+                x_distance = grid_width-abs(x_distance)
+                x_direction *= -1
+            if abs(y_distance) > round(grid_height/2):
+                y_distance = grid_height-abs(y_distance)
+                y_direction *= -1
+            abs_x = abs(x_distance)
+            abs_y = abs(y_distance)
             total_distance = abs_x+abs_y
             if not nearest_food:
-                nearest_food = [total_distance,x_distance,y_distance,abs_x,abs_y,direction_x,direction_y,location]
+                nearest_food = [total_distance,x_distance,y_distance,abs_x,abs_y,x_direction,y_direction,location]
             else:
                 if total_distance < nearest_food[0]:
-                    nearest_food = [total_distance,x_distance,y_distance,abs_x,abs_y,direction_x,direction_y,location]
+                    nearest_food = [total_distance,x_distance,y_distance,abs_x,abs_y,x_direction,y_direction,location]
+    return nearest_food
+
+def choose_move():
+    global moves, player, player_old, nearest_food
+    nearest_food = get_nearest_food()
     if nearest_food:
         if nearest_food[3] > 0 and (nearest_food[3] < nearest_food[4] or nearest_food[4] == 0):
-            if nearest_food[-3] < 0:
+            if nearest_food[-3] > 0:
                 player_old = (player[0],player[1])
                 player[0] -= 1 # left
-            elif nearest_food[-3] > 0:
+            elif nearest_food[-3] < 0:
                 player_old = (player[0],player[1])
                 player[0] += 1 # right
         elif nearest_food[4] > 0:
-            if nearest_food[-2] < 0:
+            if nearest_food[-2] > 0:
                 player_old = (player[0],player[1])
                 player[1] -= 1 # up
-            elif nearest_food[-2] > 0:
+            elif nearest_food[-2] < 0:
                 player_old = (player[0],player[1])
                 player[1] += 1 # down
         wrapping_and_history_update()
@@ -206,17 +252,20 @@ def choose_move():
         #time.sleep(0.1)
 
 def init(starting_food):
-    global screen_width, screen_height, grid, history, food, food_move_gain, original_moves, moves, colour_change, history_colour, player
+    global screen_width, screen_height, grid, history, food, food_move_gain, original_moves, moves, colour_change, history_colour, player, player_old, font, text_colour, last_rect, dead, nearest_food
     seed_gen = randrange(sys.maxsize) 
     print("Seed was:", seed_gen)
-    seed(seed_gen) # same level every time
+    seed(seed_gen) # same level every time # 152214886
     grid = {} #keys are the co ords, values are the type of cell
     history = {}
+    dead = {}
+    nearest_food = None
+    previous_nearest_food = None
     total_food = starting_food
     while total_food > 0:
         x,y = randint(0,grid_width-1),randint(0,grid_height-1)
         if (x,y) not in grid:
-            grid[(x,y)] = 1
+            grid[(x,y)] = (1,(randint(0,255),randint(0,255),randint(0,255)))
             total_food -= 1
     food = 0
     food_move_gain = 4
@@ -226,10 +275,13 @@ def init(starting_food):
     colour_change = (128/moves)
     player = [round(grid_width/2)-1,round(grid_height/2)-1]
     player_old = [0,0]
+    font = pygame.font.Font(None, 110)
+    text_colour = pygame.Color('black')
     add_history()
     fill_grid()
     draw_grid_lines()
-    pygame.display.update() #first draw
+    last_rect = draw_text()
+    pygame.display.flip() #first draw
     
 pygame.init()
 info = pygame.display.Info() # You have to call this before pygame.display.set_mode()
@@ -242,7 +294,10 @@ width, height = grid_size*grid_width, grid_size*grid_height
 print(grid_width,grid_height)
 surface = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
-init(82)
+start_food_amount = 82
+draw_dead = False
+
+init(start_food_amount)
 
 SONG_END = pygame.USEREVENT + 1
 
@@ -250,13 +305,19 @@ pygame.mixer.music.set_endevent(SONG_END)
 pygame.mixer.music.load('intro.ogg')
 pygame.mixer.music.play()
 
-bot = False
+bot = True
+assisted = False
 
 running = True
+paused = False
 
 while running:
-    if bot:
+    if assisted:
         choose_move()
+        time.sleep(0.1)
+    if bot and not paused:
+        choose_move()
+        time.sleep(0.1)
     for event in pygame.event.get():
         if event.type == SONG_END:
             pygame.mixer.music.load('song.ogg')
@@ -265,10 +326,23 @@ while running:
             if event.key == pygame.K_ESCAPE:
                 running = False
                 break
+            if event.key == pygame.K_SPACE:
+                paused = not paused
+                if paused:
+                    pygame.mixer.music.pause()
+                else:
+                    pygame.mixer.music.unpause()
+            if event.key == pygame.K_b:
+                assisted = not assisted
+                paused = not assisted
+                if paused:
+                    pygame.mixer.music.pause()
+                else:
+                    pygame.mixer.music.unpause()
             elif not bot:
                 key_check(event)
     if game_over():
-        init(82)
+        init(start_food_amount)
         #running = False
         
 
