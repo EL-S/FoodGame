@@ -1,2 +1,3 @@
 # FoodGame
-Collect the food in the smallest amount of moves
+Collect the food in the smallest amount of moves .
+In shortest possible time.
