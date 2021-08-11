@@ -305,7 +305,7 @@ pygame.mixer.music.set_endevent(SONG_END)
 pygame.mixer.music.load('intro.ogg')
 pygame.mixer.music.play()
 
-bot = True
+bot = False
 assisted = False
 
 running = True
