@@ -1,0 +1,1 @@
+pyinstaller -F --add-binary "icon.png;files" -i "icon.ico" -n server.exe server.py
