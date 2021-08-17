@@ -27,4 +27,4 @@ class Network:
             response = pickle.loads(self.client.recv(2048*2))
             return response # The response data, including the board and other players
         except socket.error as e:
-            print(e)
+            raise#print(e)

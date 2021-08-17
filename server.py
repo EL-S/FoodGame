@@ -32,6 +32,17 @@ def threaded_client(conn, p, game_id):
 
         # Play the game
 
+        max_retries = 10 # If a connection fails, retry 10 times
+        retries = 0
+
+        # if retries >= max_retries:
+        #     run = False
+        #     break
+        # else:
+        #     retries += 1
+        #     flag = True
+        #     continue
+
         while True:
             try:
                 data = conn.recv(4096).decode()
@@ -40,6 +51,13 @@ def threaded_client(conn, p, game_id):
                     game = games[game_id]
 
                     if not data:
+                        print("a")
+                        if retries >= max_retries:
+                            print("Too many retries, closing game")
+                            break
+                        else:
+                            retries += 1
+                            continue
                         break
                     else:
                         if data == "reset":
@@ -52,8 +70,10 @@ def threaded_client(conn, p, game_id):
 
                         conn.sendall(pickle.dumps(game))
                 else:
+                    print("Game doesn't exist anymore?")
                     break
-            except:
+            except Exception as e:
+                print("General error",e)
                 break
     except:
         print("No player name sent!")

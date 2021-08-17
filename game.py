@@ -17,15 +17,35 @@ class Game:
         self.starting_moves = 20
         self.starting_food = 50
         self.winner = None
+        self.populate_food()
 
-
+    def populate_food(self):
         seed(self.seed) # same level every time # 152214886
         total_food = self.starting_food
         while total_food > 0:
             x,y = randint(0,self.grid_width-1),randint(0,self.grid_height-1)
             if (x,y) not in self.grid:
-                self.grid[(x,y)] = (1,(randint(0,255),randint(0,255),randint(0,255))) # (0,127,127))
+                self.grid[(x,y)] = (1,self.gen_colour((255,255,255))) # (0,127,127))
                 total_food -= 1
+
+    def gen_colour(self, mix=None):
+        red = randint(0,255)
+        green = randint(0,255)
+        blue = randint(0,255)
+
+        if (mix != None):
+            red, green, blue = self.mix_colours((red,green,blue),(255,255,255))
+
+        colour = (red, green, blue)
+        return colour
+
+    def mix_colours(self, colour_1, colour_2):
+        red = round(max(0, min((colour_1[0] + colour_2[0]) / 2, 255)))
+        green = round(max(0, min((colour_1[1] + colour_2[1]) / 2, 255)))
+        blue = round(max(0, min((colour_1[2] + colour_2[2]) / 2, 255)))
+
+        colour = (red, green, blue)
+        return colour
 
     def play(self, player_id, move):
         #self.moves[player] = move
@@ -76,38 +96,39 @@ class Game:
         except:
             pass
 
+    def round_bound_colour(self, colour_channel):
+        return round(max(0, min(colour_channel, 255)))
+
     def add_history(self, player_id, player_colour, moves, pos):
         # player['id'],player['colour'],player['moves'],pos.copy()
         value = self.starting_moves-moves
         value = max(0, min(value, self.starting_moves)) # keep the value in bounds
+        percentage = value/self.starting_moves
+        #colour_change = (128/self.starting_moves)
 
-        colour_change = (128/self.starting_moves)
+        color1 = player_colour
+        color2 = (255, 255, 255)
 
-        player_r = player_colour[0]
-        player_g = player_colour[1]
-        player_b = player_colour[2]
+        colour_r = (percentage * color1[0]) + ((1 - percentage) * color2[0])
+        colour_g = (percentage * color1[1]) + ((1 - percentage) * color2[1])
+        colour_b = (percentage * color1[2]) + ((1 - percentage) * color2[2])
 
-        sign_1 = 1 if player_r > 128 else -1
-        sign_2 = 1 if player_g > 128 else -1
-        sign_3 = 1 if player_b > 128 else -1
+        colour_val = (self.round_bound_colour(colour_r), self.round_bound_colour(colour_g), self.round_bound_colour(colour_b))
 
-        multiplier_1 = player_r/255
-        multiplier_2 = player_g/255
-        multiplier_3 = player_b/255
+        #player_r = player_colour[0]-(value*colour_change)
+        #player_g = player_colour[1]-(value*colour_change)
+        #player_b = player_colour[2]-(value*colour_change)
+        #player_other = (player_r,player_g,player_b)
 
-        colour_val = (round(max(0, min(128+(value*colour_change*sign_1*multiplier_1), 255))),
-                      round(max(0, min(128+(value*colour_change*sign_2*multiplier_2), 255))),
-                      round(max(0, min(128+(value*colour_change*sign_3*multiplier_3), 255))))
+        #origin_r, origin_g, origin_b = (255,255,255)
+        #colour_val = self.mix_colours(player_other,(255,255,255))
 
         self.history[tuple(pos)] = [player_id,colour_val,moves]
 
     def create_player(self, player, name):
         # self.names[player] = name
         try:
-            colour_r = randint(0,255)
-            colour_g = randint(0,255)
-            colour_b = randint(0,255)
-            colour = (colour_r,colour_g,colour_b)
+            colour = self.gen_colour((255,255,255))
             self.players.append({"id":player,"name":name,"pos":self.spawn_position.copy(),"colour":colour,"moves":self.starting_moves,"score":0})
         except Exception as e:
             print(e)
@@ -141,13 +162,7 @@ class Game:
         self.starting_moves = 20
         self.starting_food = 50
 
-        seed(self.seed) # same level every time # 152214886
-        total_food = self.starting_food
-        while total_food > 0:
-            x,y = randint(0,self.grid_width-1),randint(0,self.grid_height-1)
-            if (x,y) not in self.grid:
-                self.grid[(x,y)] = (1,(randint(0,255),randint(0,255),randint(0,255))) # (0,127,127))
-                total_food -= 1
+        self.populate_food()
 
         for index, player in enumerate(self.players):
             self.players[index]['pos'] = self.spawn_position.copy()
@@ -168,48 +183,3 @@ class Game:
                 break
         else:
             return True
-
-    # def get_player_name(self, p):
-    #     """
-    #     :param p: [0,1]
-    #     :return: Name
-    #     """
-    #     return self.names[p]
-
-    # def get_player_move(self, p):
-    #     """
-    #     :param p: [0,1]
-    #     :return: Move
-    #     """
-    #     return self.moves[p]
-
-    # def bothWent(self):
-    #     return self.p1Went and self.p2Went
-
-    # def winner(self):
-    #
-    #     p1 = self.moves[0].upper()[0]
-    #     p2 = self.moves[1].upper()[0]
-    #
-    #     winner = -1
-    #     if p1 == "R" and p2 == "S":
-    #         winner = 0
-    #     elif p1 == "S" and p2 == "R":
-    #         winner = 1
-    #     elif p1 == "P" and p2 == "R":
-    #         winner = 0
-    #     elif p1 == "R" and p2 == "P":
-    #         winner = 1
-    #     elif p1 == "S" and p2 == "P":
-    #         winner = 0
-    #     elif p1 == "P" and p2 == "S":
-    #         winner = 1
-    #
-    #     # reset moves
-    #     # self.moves = [None, None]
-    #
-    #     return winner
-
-    # def resetWent(self):
-    #     self.p1Went = False
-    #     self.p2Went = False
