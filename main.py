@@ -30,7 +30,7 @@ volume_last_changed = None
 desired_volume = None
 
 def main():
-    global desired_volume
+    global desired_volume, your_player_id
     running = True
     paused = False
     show_ui = True
@@ -39,14 +39,14 @@ def main():
     try:
         response = n.getP()
         if response:
-            player = int(response)
+            your_player_id = int(response)
         else:
             print("No connection to the server.")
             return
     except Exception as e:
         print(e,"in main menu")
         return
-    print("You are player", player)
+    print("You are player", your_player_id)
 
     wait_for_other_player(n)
 
@@ -154,7 +154,11 @@ def update_screen(game,show_ui):
         cell_x,cell_y = player['pos']
         colour = player['colour'] #(255,0,0)
         fill_cell(cell_x,cell_y,colour)
-        half_fill_cell(cell_x,cell_y,colour,1.1,True)
+        if player['id'] == your_player_id:
+            triangle_fill_cell(cell_x,cell_y,colour,1.1,True)
+        else:
+            circle_fill_cell(cell_x,cell_y,colour,1.1,True)
+        #half_fill_cell(cell_x,cell_y,colour,1.1,True)
 
     draw_grid_lines() # Draw the grid first
 
@@ -232,31 +236,50 @@ def mix_colours(colour_1, colour_2):
     return colour
 
 def draw_text(game):
-    player_1_name = str(game.players[0]['name'])
-    player_2_name = str(game.players[1]['name'])
+    max_font_size = 60
 
-    player_1_moves = str(game.players[0]['moves'])
-    player_2_moves = str(game.players[1]['moves'])
+    player_x_distance_offset = round((screen_width)/(game.player_count+1))
+    font_size = round(120/game.player_count)
 
-    player_1_score = str(game.players[0]['score'])
-    player_2_score = str(game.players[1]['score'])
 
-    player_1_colour = game.players[0]['colour']
-    player_2_colour = game.players[1]['colour']
+    if font_size > max_font_size:
+        font_size = max_font_size
 
-    gradient_multiplier = 1.1
-    outline_colour_faded = tuple(max(0, min(value*gradient_multiplier, 255)) for value in player_1_colour)
-    outline_colour_faded_2 = tuple(max(0, min(value*gradient_multiplier, 255)) for value in player_2_colour)
+    player_y_distance_offset = round((font_size/2) + (font_size/6))
+    x_offset_offset = font_size # TODO: Make a better name for this variable
 
-    # TODO: Make text position and size smart and based on length of name
 
-    render_text_with_outline(160, 40, player_1_name, player_1_colour, outline_colour_faded, 60)
-    render_text_with_outline(160-60, 110, player_1_moves, player_1_colour, outline_colour_faded, 60)
-    render_text_with_outline(160+60, 110, player_1_score, player_1_colour, outline_colour_faded, 60)
+    line_height = round(font_size + (font_size/6))
 
-    render_text_with_outline(560, 40, player_2_name, player_2_colour, outline_colour_faded_2, 60)
-    render_text_with_outline(560-60, 110, player_2_moves, player_2_colour, outline_colour_faded_2, 60)
-    render_text_with_outline(560+60, 110, player_2_score, player_2_colour, outline_colour_faded_2, 60)
+    for index, player in enumerate(game.players):
+        x_offset = player_x_distance_offset + player_x_distance_offset*(index)
+
+        y_offset = player_y_distance_offset
+
+        player_name = str(player['name'])
+        player_moves = str(player['moves'])
+        player_score = str(player['score'])
+        player_colour = player['colour']
+
+        gradient_multiplier = 1.1
+        outline_colour_faded = tuple(max(0, min(value*gradient_multiplier, 255)) for value in player_colour)
+
+        # TODO: Make text position and size smart and based on length of name
+
+        if game.game_mode == 1 and game.active_player == index:
+            outline_colour_faded = (0, 0, 0)
+            font_size_multiplier = 1.1
+        else:
+            font_size_multiplier = 1.0
+
+        if player['id'] == your_player_id:
+            player_name = "You"
+
+        actual_font_size = round(font_size * font_size_multiplier)
+
+        render_text_with_outline(x_offset, y_offset, player_name, player_colour, outline_colour_faded, actual_font_size)
+        render_text_with_outline(x_offset-x_offset_offset, y_offset+line_height, player_moves, player_colour, outline_colour_faded, actual_font_size)
+        render_text_with_outline(x_offset+x_offset_offset, y_offset+line_height, player_score, player_colour, outline_colour_faded, actual_font_size)
 
 def render_text(x, y, string, colour, size):
     font = pygame.font.Font("impact.ttf", size)
@@ -268,10 +291,15 @@ def render_text(x, y, string, colour, size):
 
 def render_text_with_outline(x, y, string, colour, outline_colour, size):
     # Hacky Outline
-    render_text(x+2, y-2, string, outline_colour, size)
-    render_text(x-2, y+2, string, outline_colour, size)
-    render_text(x-2, y-2, string, outline_colour, size)
-    render_text(x+2, y+2, string, outline_colour, size)
+    outline_width = size/15
+    outline_offset = outline_width/2
+    render_text(x+outline_offset, y-outline_offset, string, outline_colour, size)
+    render_text(x-outline_offset, y+outline_offset, string, outline_colour, size)
+    render_text(x-outline_offset, y-outline_offset, string, outline_colour, size)
+    render_text(x+outline_offset, y+outline_offset, string, outline_colour, size)
+
+    # Fill outline bad, makes it look 3D
+    #render_text(x, y, string, outline_colour, size+1)
 
     # Fill colour
     render_text(x, y, string, colour, size)
@@ -312,6 +340,46 @@ def half_fill_cell(x,y,colour,gradient_multiplier,blend_colours=False):
     y_offset = height_difference/2
     pygame.draw.rect(surface, middle_colour, pygame.Rect(x+x_offset, y+y_offset, square_width, square_height))
 
+def circle_fill_cell(x,y,colour,gradient_multiplier,blend_colours=False):
+    x, y = x*grid_size, y*grid_size
+
+    if blend_colours:
+        faded_colour = tuple(max(0, min(value*gradient_multiplier, 255)) for value in colour)
+        middle_colour = mix_colours(colour,faded_colour)
+    else:
+        middle_colour = colour
+
+    circle_radius = (grid_size/2)*0.75
+    x_offset = (grid_size/2)
+    y_offset = (grid_size/2)
+
+    pygame.draw.circle(surface, middle_colour, (x+x_offset,y+y_offset), circle_radius)
+
+def triangle_fill_cell(x,y,colour,gradient_multiplier,blend_colours=False):
+    x, y = x*grid_size, y*grid_size
+
+    if blend_colours:
+        faded_colour = tuple(max(0, min(value*gradient_multiplier, 255)) for value in colour)
+        middle_colour = mix_colours(colour,faded_colour)
+    else:
+        middle_colour = colour
+
+    circle_radius = (grid_size/2)*0.75
+    x_offset = (grid_size/2)
+    y_offset = (grid_size/2)
+
+    middle_x = x+x_offset
+    top_y = y
+    bottom_y = y+grid_size
+    left_x = x
+    right_x = x+grid_size
+    #middle_y = y+x_offset
+
+    # TODO: Make the triangle size make sense and accessible from outside the function
+    triangle_size = 7
+
+    points = [(middle_x, top_y+grid_size/triangle_size), (right_x-grid_size/triangle_size, bottom_y-grid_size/triangle_size), (left_x+grid_size/triangle_size, bottom_y-grid_size/triangle_size)]
+    pygame.draw.polygon(surface, middle_colour, points)
 
 def valid_move(move):
     return move >= 0 and move <= 3
@@ -361,8 +429,8 @@ def wait_for_other_player(n):
             running = False
             print("Couldn't get game in name section",e)
             break
-        if game.both_named():
-            print("both players named")
+        if game.connected():
+            print("game is ready")
             running = False
             break
 

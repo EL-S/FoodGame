@@ -2,11 +2,11 @@ from random import seed, randint, getstate, randrange, random
 import sys
 
 class Game:
-    def __init__(self, id):
+    def __init__(self, game_id, max_players, game_mode):
         self.p1_name_went = False
         self.p2_name_went = False
         self.ready = False
-        self.id = id
+        self.game_id = game_id
         self.players = []
         self.grid_width = 18
         self.grid_height = 18
@@ -18,6 +18,10 @@ class Game:
         self.starting_food = 50
         self.winner = None
         self.populate_food()
+        self.max_players = max_players
+        self.player_count = 0
+        self.game_mode = game_mode
+        self.active_player = None
 
     def populate_food(self):
         seed(self.seed) # same level every time # 152214886
@@ -47,35 +51,65 @@ class Game:
         colour = (red, green, blue)
         return colour
 
+    # No ID problem
     def play(self, player_id, move):
         #self.moves[player] = move
         print(f"moving player {player_id} {move}")
         for index, player in enumerate(self.players):
             if player['id'] == player_id:
-                if self.players[index]['moves'] > 0:
-                    pos = self.players[index]['pos']
-                    self.add_history(player['id'],player['colour'],player['moves'],pos.copy())
-                    if move == 0:
-                        pos[1] -= 1
-                    elif move == 1:
-                        pos[0] -= 1
-                    elif move == 2:
-                        pos[1] += 1
-                    elif move == 3:
-                        pos[0] += 1
-                    self.players[index]['pos'] = self.wrap_position(pos)
-                    self.players[index]['moves'] -= 1
-                    print("Moves left",self.players[index]['moves'])
-                    self.check_food(player['id'])
-                else:
-                    print("Out of moves!")
+                if self.game_mode == 0:
+                    if self.players[index]['moves'] > 0:
+                        pos = self.players[index]['pos']
+                        self.add_history(player['id'],player['colour'],player['moves'],pos.copy())
+                        if move == 0:
+                            pos[1] -= 1
+                        elif move == 1:
+                            pos[0] -= 1
+                        elif move == 2:
+                            pos[1] += 1
+                        elif move == 3:
+                            pos[0] += 1
+                        self.players[index]['pos'] = self.wrap_position(pos)
+                        self.players[index]['moves'] -= 1
+                        print("Moves left",self.players[index]['moves'])
+                        self.check_food(player['id'])
+                    else:
+                        print("Out of moves!")
+                elif self.game_mode == 1:
+                    if self.active_player == self.get_player_index(player_id):
+                        if self.players[index]['moves'] > 0:
+                            pos = self.players[index]['pos']
+                            self.add_history(player['id'],player['colour'],player['moves'],pos.copy())
+                            if move == 0:
+                                pos[1] -= 1
+                            elif move == 1:
+                                pos[0] -= 1
+                            elif move == 2:
+                                pos[1] += 1
+                            elif move == 3:
+                                pos[0] += 1
+                            self.players[index]['pos'] = self.wrap_position(pos)
+                            self.players[index]['moves'] -= 1
+                            print("Moves left",self.players[index]['moves'])
+                            self.check_food(player['id'])
+                            self.get_next_player_turn()
+                        else:
+                            print("Out of moves!")
+                    else:
+                        print("Not the active_player")
                 break
 
         if self.game_over():
             print("Gameover")
             #  show who won, wait a few seconds then reset
 
-            self.winner = self.players[0] if self.players[0]['score'] > self.players[1]['score'] else self.players[1]
+            winning_player = None
+            winning_score = -1 # Must be -1 otherwise game can get stuck
+            for index, player in enumerate(self.players):
+                if player['score'] > winning_score:
+                    winning_player = player
+                    winning_score = player['score']
+            self.winner = winning_player
             #self.reset()
 
         # maybe useful if I make it turnbased
@@ -84,23 +118,30 @@ class Game:
         # else:
         #     self.p2Went = True
 
+    # No ID problem
     def check_food(self, player_id):
+        print("Checking food", player_id)
         try:
-            cell_x,cell_y = self.players[player_id]['pos']
+            selected_player = None
+            for player in self.players:
+                if player['id'] == player_id:
+                    selected_player = player
+                    break
+            cell_x,cell_y = selected_player['pos']
             if self.grid[(cell_x,cell_y)][0] == int(1):
                 print("Gained move!")
-                print("Moves left",self.players[player_id]['moves'])
-                self.players[player_id]['moves'] += 3
-                self.players[player_id]['score'] += 1
+                print("Moves left",selected_player['moves'])
+                selected_player['moves'] += 3
+                selected_player['score'] += 1
                 del self.grid[(cell_x,cell_y)]
-        except:
-            pass
+        except Exception as e:
+            print(e)
 
     def round_bound_colour(self, colour_channel):
         return round(max(0, min(colour_channel, 255)))
 
+    # No ID problem
     def add_history(self, player_id, player_colour, moves, pos):
-        # player['id'],player['colour'],player['moves'],pos.copy()
         value = self.starting_moves-moves
         value = max(0, min(value, self.starting_moves)) # keep the value in bounds
         percentage = value/self.starting_moves
@@ -125,17 +166,75 @@ class Game:
 
         self.history[tuple(pos)] = [player_id,colour_val,moves]
 
+    def remove_history(self, player_id):
+        # remove history of players no longer online
+        for pos in list(self.history.keys()):
+            if self.history[pos][0] == player_id:
+                del self.history[pos]
+
     def create_player(self, player, name):
         # self.names[player] = name
         try:
             colour = self.gen_colour((255,255,255))
             self.players.append({"id":player,"name":name,"pos":self.spawn_position.copy(),"colour":colour,"moves":self.starting_moves,"score":0})
+            self.player_count += 1
+            if self.game_mode == 1:
+                if self.active_player == None:
+                    self.active_player = 0 # The first player is the first active player
         except Exception as e:
             print(e)
         if player == 0:
             self.p1_name_went = True
         else:
             self.p2_name_went = True
+
+    def get_next_player_turn(self):
+        self.active_player += 1
+        if len(self.players) == 0: # No players online
+            self.active_player = None
+        if self.active_player >= len(self.players): # Wrap around the first player again
+            self.active_player = 0
+
+    def get_player_index(self,player_id):
+        for index, player in enumerate(self.players):
+            if player['id'] == player_id:
+                return index
+
+    def check_active_player(self, player_id):
+        return self.get_player_index(player_id) == self.active_player
+
+    def destroy_player(self, player_id):
+        # self.names[player] = name
+        try:
+            i = 0
+            for index, player_object in enumerate(self.players):
+                if player_object['id'] == player_id:
+                    i = index
+                    break
+            #self.players.remove(i)
+            self.remove_history(player_id)
+            self.fix_active_player(player_id)
+            del self.players[i]
+            self.player_count -= 1
+        except Exception as e:
+            print(e)
+
+    # This is used to preserve the games current player or pass it on appropriately when a player disconnects
+    def fix_active_player(self, player_id):
+        if len(self.players) == 1: # This was the last player
+            self.active_player = None
+        elif self.check_active_player(player_id): # This was the current active player
+            if self.active_player == len(self.players)-1: # They were the last player in the turns
+                self.active_player = 0 # Reset the active player to the start
+            else:
+                # The index is the same as the new active players index so it is fine
+                pass
+        elif self.get_player_index(player_id) > self.active_player:
+            # The current active players index has not changed
+            pass
+        else:
+            # The player has made the active players index 1 less than it should be
+            self.active_player -= 1
 
     def wrap_position(self, pos):
         if int(pos[0]) >= self.grid_width:
@@ -151,8 +250,8 @@ class Game:
     def connected(self):
         return self.ready
 
-    def both_named(self):
-        return self.p1_name_went and self.p2_name_went
+    # def both_named(self):
+    #     return self.p1_name_went and self.p2_name_went
 
     def reset(self):
         self.winner = None
